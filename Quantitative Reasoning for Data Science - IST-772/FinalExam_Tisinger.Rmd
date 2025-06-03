@@ -1,0 +1,239 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+#IST 772
+#Benjamin Tisinger
+#03/30/2023
+#Final Exam Code
+
+
+```{r}
+#Load in Data Sets
+```
+
+```{r}
+load("C:/Users/Benja/OneDrive/Desktop/SYRACUSE MASTERS/IST772/IST772/IST772/allSchoolsReportStatus.RData")
+load("C:/Users/Benja/OneDrive/Desktop/SYRACUSE MASTERS/IST772/IST772/IST772/districts24.RData") 
+load("C:/Users/Benja/OneDrive/Desktop/SYRACUSE MASTERS/IST772/IST772/IST772/usVaccines.RData") 
+```
+
+```{r}
+#Library Required Packages
+```
+
+```{r}
+library(BayesFactor)
+library(MCMCpack)
+library(data.table)
+library(TSstudio)
+library(plotly)
+library(ggplot2)
+```
+
+
+```{r}
+#1. How have U.S. vaccination rates varied over time? Are vaccination rates increasing or decreasing? Which vaccination has the highest rate at the conclusion of the time series? Which vaccination has the lowest rate at the conclusion of the time series? Which vaccine has the greatest volatility?
+
+head(usVaccines,5)
+plot(usVaccines,col="#D44500")
+
+ts_plot(usVaccines,
+        title = "US Vaccines from 1980 to 2017",
+        Xtitle = "Time",
+        Ytitle = "Vaccine Percentage",
+        type = "multiple",
+        Xgrid = TRUE,
+        Ygrid = TRUE) %>%
+  
+
+
+ layout(paper_bgcolor = "black",
+         plot_bgcolor = "black",
+         font = list(color = "white"),
+         yaxis = list(linecolor = "#6b6b6b",
+                      zerolinecolor = "#6b6b6b",
+                      gridcolor= "#444444"),
+         xaxis = list(linecolor = "#6b6b6b",
+                      zerolinecolor = "#6b6b6b",
+                      gridcolor= "#444444"))
+
+```
+```{r}
+ts_plot(usVaccines,
+        title = "US Vaccines from 1980 to 2017",
+        Xtitle = "Time",
+        Ytitle = "Vaccine Percentage",
+
+        Xgrid = TRUE,
+        Ygrid = TRUE) %>%
+  
+layout(paper_bgcolor = "black",
+         plot_bgcolor = "black",
+         font = list(color = "white"),
+         yaxis = list(linecolor = "#6b6b6b",
+                      zerolinecolor = "#6b6b6b",
+                      gridcolor= "#444444"),
+         xaxis = list(linecolor = "#6b6b6b",
+                      zerolinecolor = "#6b6b6b",
+                      gridcolor= "#444444"))
+
+#I have reviewed the plotted data from usVaccines, overtime you can arguably assume that the overall rate of vaccines have increased since being recorded in the 1980's. The highest recorded vaccine rates are present in the DPT1, HIB3 and MCV1 data.The lowest overall recorded vaccine is the HEPB-BD Vaccine, the highest charted value is around the 70 mark.Most of the charted vaccine records show some volatility, but the most volatile vaccine is the MCV1 hitting a high of around 95 dropping sharply to the 70's and the rebounding a few years later back to over 95. This vaccine also sharply drops and then average out around the mid 90's percentile.The data shown has all vaccines dropping in the 1980s's this could point to drop due to concern over vaccines or a data reporting issue. 
+
+```
+
+
+```{r}
+#2. What proportion of public schools reported vaccination data? What proportion of private schools reported vaccination data? Was there any credible difference in overall reporting proportions between public and private schools?
+
+head(allSchoolsReportStatus,5)
+allSchoolsReportStatus$nmbr <- 1
+setDT(allSchoolsReportStatus)
+schoolvac<- dcast(allSchoolsReportStatus, pubpriv ~ reported)
+schoolvac[,':='(TotVacReported = Y/sum(N, Y)), .(pubpriv)]
+schoolvac
+
+#We ran a DCAST simulation to reshape the data.We have learned that public schools reported an overall percentage of 97% vaccine data, while private schools reported a total of 84%.The best explanation for this is that Public schools are state funded requiring students to get vaccinated before attending, while some private schools may not disclose vaccine requirements or data. This would overall lead to a lower number for private schools. 
+
+
+```
+
+```{r}
+#3. What are 2013 vaccination rates for individual vaccines (i.e., DOT, Polio, MMR, and HepB) in California public schools? How do these rates for individual vaccines in California districts compare with overall US vaccination rates (make an informal comparison to the final observations in the time series)?
+
+head(districts,5)
+setDT(districts)
+districts[,':='(dtp=100-WithoutDTP, polio=100-WithoutPolio, mmr=100-WithoutMMR, hepb=100-WithoutHepB)] 
+districtaverages <- districts[, .(AverageDTPVac = mean(dtp), AveragePolioVac=mean(polio), AverageMMRVac=mean(mmr), AverageHepBVac=mean(hepb))]
+districtaverages
+
+#I have ran some calculations to find the averages of the DTP,Polio,MMR and HepB Vaccines among the included California Based Schools. We have learned that all vaccine rates are higher than 89%.The HepB vaccine has the highest number of vaccinations around the 92% mark.The overall lowest vaccination vaccine is that of the DTP around 89%. We can also assume by looking at the graphed vaccine records across the entire US that the average vaccination rate in California closely follows the US Average or may slightly exceed it. 
+
+
+```
+```{r}
+#4. Among districts, how are the vaccination rates for individual vaccines related? In other words, if students are missing one vaccine are they missing all of the others?
+
+head(districts,5)
+districtRates <- districts[,c(2:6)]
+cor(districtRates)
+plot(districtRates,col="Blue")
+label=c("DTP","Polio","MMR","HEPB")
+boxplot(districts$dtp,districts$polio,districts$mmr,districts$hepb,col="Red",names=label)
+
+
+#I decided to run a correlation matrix to see the relationship between vaccines. I can best say from this correlation matrix that the likelihood of a student missing one meaning missing all is quite low. We can tell this from the correlation results on Polio, DTP and MMR. 
+
+```
+
+```{r}
+
+#Predictive Analyses: (For all of these analyses, use PctChildPoverty, PctFreeMeal, PctFamilyPoverty, Enrolled, and TotalSchools as predictors. Transform variables as necessary to improve prediction and/or interpretability. In general, if there is a Bayesian version of an analysis available, you are expected to run that analysis in addition to the frequentist version of the analysis.)
+
+#5. What variables predict whether or not a district’s reporting was complete?
+
+#5Rows
+#17 Columns
+districtcor <- districts[,c(7, 9:13)]
+cor(districtcor)
+plot(districtcor,col="Blue")
+
+reportglm<- glm(DistrictComplete~., data = districtcor, family = binomial())
+summary(reportglm)
+
+#Here we are able to see an extremely high correlation Between - FreeMeal,ChildPoverty and FamilyPoverty. This of course makes sense if you think about the correlation between Poverty and the right for children to access affordable and free meals at school.
+
+
+#By utilizing a frequentist approach, we can observe that the poverty values and the value of free meals exhibit high P-values, indicating that we cannot reject the null hypothesis that these independent variables do not have any influence on whether the district reports complete information. We can also notice that the enrollment status and total number of schools have p-values significantly below the threshold of 0.05.These thresholds below 0.05 could mean the ability to reject the null hypothesis. 
+```
+
+```{r}
+markovtest<- MCMClogit(DistrictComplete~., data = districtcor)
+summary(markovtest)
+plot(markovtest,col="#D44500")
+
+#The Bayesian model shows comparable/equal results to the conventional frequentist model we used above.The intercept, number of enrolled students, and total school density in the district are the most probable. Although the high-density intervals do not cross zero, the effects of enrollment and total schools are relatively small. On the other hand, variables such as the percentage of family poverty, percentage of child poverty, and percentage of free meals served do cross zero and do not offer statistical evidence to reject the null hypothesis, similar to the frequentist model. 
+```
+```{r}
+#6. What variables predict the percentage of all enrolled students with completely up-to-date vaccines?
+vaccinetotal <- districts[, c(6,8:13)]
+cor(vaccinetotal)
+
+#Some Correlation between the shown variables and younger students who are fully up-to date on vaccines. 
+
+vaccinedate <- lm(PctUpToDate ~ ., data = vaccinetotal)
+summary(vaccinedate)
+#F-statistic: 131.2 on 6 and 693 DF,  p-value: < 2.2e-16
+```
+```{r}
+bayesmodel <- lmBF(PctUpToDate ~ PctChildPoverty + PctFamilyPoverty + Enrolled +  PctFreeMeal + TotalSchools, data = vaccinetotal, posterior = T, iterations = 10000)
+summary(bayesmodel)
+lmBF(PctUpToDate ~ PctChildPoverty + PctFreeMeal + PctFamilyPoverty + Enrolled + TotalSchools, data = vaccinetotal)
+plot(bayesmodel,col="#D44500")
+
+
+```
+```{r}
+
+#Very Interesting approach there on the Bayes Analysis. I would like to believe that at some point that maybe the PCTFreeMeal might pass through maybe. I think this question in relation to the class and analysis is quite interesting because it challenges us to think about a correlation in the data. I think overall there are a couple of key performance indicators that stand out, like the P-Value and PctChildPoverty + PctFreeMeal + PctFamilyPoverty + Enrolled + TotalSchools : 352940421 ±0.01%. The overall verdict here is that we should reject the null hypothesis due to the P-Value.
+
+```
+
+```{r}
+#7. What variables predict the percentage of all enrolled students with belief exceptions?
+
+head(districts,5)
+
+beliefex <- lm(PctBeliefExempt ~ PctChildPoverty + PctFreeMeal + PctFamilyPoverty + Enrolled + TotalSchools, data=districts)
+summary(beliefex)
+anova(beliefex, test="Chisq") #Anova Test is very important here
+plot(beliefex,col="#D44500")
+
+```
+
+```{r}
+baytest1 <- lmBF(PctBeliefExempt ~ PctChildPoverty + PctFreeMeal + PctFamilyPoverty + Enrolled + TotalSchools, data = districts, posterior = T, iterations = 10000)
+summary(baytest1)
+
+```
+
+```{r}
+#F-statistic: 17.44 on 5 and 694 DF,  p-value: 2.756e-16
+head(districts,13)
+final1 <- districts[, c(6:13)]
+finalmodel <- lm(PctBeliefExempt ~ ., data = final1)
+summary(finalmodel)
+```
+
+```{r}
+#For this question we need to take a look at the ran ANOVA test and the P-Value.The Anova had a P-Value of 2.756e-16 and the Linear Model we ran came back with a P-value of 2.2e-16. I would conclude from the data shown and the recorded tests would be to reject the null hypothesis due to the P-Values.We can conclude due to rejecting the null hypothesis that there is some correlation between the religious exmeption and the ran values of PctChildPoverty + PctFreeMeal + PctFamilyPoverty + Enrolled + TotalSchools. 
+```
+
+```{r}
+#8. What’s the big picture, based on all of the foregoing analyses? The staff member in the state legislator’s office is interested to know how to allocate financial assistance to school districts to improve both their vaccination rates and their reporting compliance. What have you learned from the data and analyses that might inform this question?
+
+districts
+
+finalgraph1 <- ggplot(districts,aes(y=PctBeliefExempt,x=PctFreeMeal)) + geom_point(aes(colour=PctFreeMeal)) + theme_minimal() + geom_smooth(method="glm")
+
+finalgraph2 <- ggplot(districts,aes(y=PctChildPoverty,x=PctUpToDate)) + geom_point(aes(colour=PctUpToDate)) + theme_minimal() + geom_smooth(method="glm")
+
+finalgraph3 <- ggplot(districts,aes(y=PctChildPoverty,x=PctFreeMeal)) + geom_point(aes(colour=PctFreeMeal)) + theme_minimal() + geom_smooth(method="glm")
+
+finalgraph4 <- ggplot(districts,aes(y=PctFreeMeal,x=PctUpToDate)) + geom_point(aes(colour=PctUpToDate)) + theme_minimal() + geom_smooth(method="glm")
+
+finalgraph5 <- ggplot(districts,aes(y=PctFreeMeal,x=WithoutMMR)) + geom_point(aes(colour=PctUpToDate)) + theme_minimal() + geom_smooth(method="glm")
+
+finalgraph6 <- ggplot(data=districts, aes(x=PctUpToDate, y=Enrolled,fill=PctUpToDate)) +geom_bar(stat="identity")
+
+finalgraph1
+finalgraph2
+finalgraph3
+finalgraph4
+finalgraph5
+finalgraph6
+
+#I graphed these final charts to overall take a final look at some of the key data indicators in this set. The final question simply asks you based of the data and information you see, what kind of advice or information could you provide to a legislator regarding vaccines and reporting.I look at the first chart I plotted which tells us that in relation to children receiving free lunches there's not a high correlation to a belief exemption from vaccines.This potentially could tell us that maybe free meals has a correlation somewhere else. I would take a look at the second graph and see that there is some correlation that relates to the number of children who are up to date and children that may experience poverty. I would advise the legislator here to keep an eye on specifically on children that are reported in the poverty sector and monitor their vaccination rate, this is critical for low income families to receive affordable/free vaccines for kids. The third chart I have plotted here is the most perfect example of a strong positive linear line.This tells us that as we could assume, there is a massive correlation between children who receive reduced meals and those facing poverty.This is a key indicator for any legislator that they need to continue providing free meals to those with poverty because this simply increases the chance of full vaccination as shown in chart 1. Chart four shows the correlation between students who are up to date and receive free lunches. I graphed chart 5 in respect to the CDC website listing MMR as one of the most important vaccines for younger kids entering school. I decided to graph the odds of students receiving free meals and who are lacking that important vaccine. We can see from the data the majority of students who receive free lunches aren't missing that vaccine. In conclusion, the biggest takeaway here is that for any legislator looking to continue making vaccines important that they need to provide free lunches. The data has shown that free lunches directly correlates to sectors in and out of poverty and directly correlates to one of the most important childhood vaccines.Taking this approach increases food for children in the poverty sector, raises vaccine rates and as whole our total population of enrolled students who are up to date also increases. 
+```

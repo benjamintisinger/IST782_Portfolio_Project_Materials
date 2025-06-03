@@ -1,0 +1,218 @@
+IF NOT EXISTS(SELECT * FROM sys.databases WHERE name='astor_hotel_management')
+    CREATE DATABASE astor_hotel_management
+
+GO
+
+USE astor_hotel_management
+GO
+
+--DOWN
+ALTER TABLE Reservations DROP CONSTRAINT fk_reservations_guestid
+ALTER TABLE Reservations DROP CONSTRAINT fk_reservations_roomid
+ALTER TABLE Payments DROP CONSTRAINT fk_payments_reservationid
+ALTER TABLE Bookings DROP CONSTRAINT fk_bookings_bookedby
+ALTER TABLE Payments DROP CONSTRAINT fk_payments_bookingid
+DROP TABLE IF EXISTS Guests
+DROP TABLE IF EXISTS Reservations
+DROP TABLE IF EXISTS Rooms
+DROP TABLE IF EXISTS RoomTypes
+DROP TABLE IF EXISTS Bookings
+DROP TABLE IF EXISTS Payments
+DROP TABLE IF EXISTS Inventory
+DROP TABLE IF EXISTS Staff
+
+
+--UP Metadata
+
+CREATE TABLE Guests (
+    GuestID int not null,
+    Guest_firstname varchar(50) not null,
+    Guest_lastname varchar(50) not null,
+    Guest_phonenumber varchar(15) not null,
+    Guest_email varchar(50) not null,
+    Guest_address varchar(100) null,
+    constraint pk_guest_guestid primary key (guestID)
+)
+
+CREATE TABLE Rooms (
+    RoomID int not null,
+    RoomNumber int not null,
+    RoomType varchar(100) not null,
+    BedType varchar(100) not null,
+    Rate money not null,
+    RoomStatus varchar(100) not null,
+    constraint pk_rooms_roomid primary key (RoomID)
+)
+
+
+CREATE TABLE RoomTypes (
+    RoomTypeID int not null,
+    Room_Description varchar(100) not null,
+    MaxOccupancy int not null,
+    Amenities varchar(300) null,
+    constraint pk_roomtypes_roomtypeid primary key (RoomTypeID)
+)
+
+
+CREATE TABLE Bookings (
+    BookingID int not null,
+    GuestID int not null,
+    BookingDate date not null,
+    BookingTime time not NULL,
+    BookingType varchar(100) not null, 
+    constraint pk_bookings_bookingid primary key (BookingID),
+    constraint fk_bookings_bookedby foreign key (GuestID) references Guests(GuestID) 
+)
+
+
+
+CREATE TABLE Reservations (
+    ReservationID int not null,
+    GuestID int not null,
+    RoomID int not null,
+    Room_Description varchar(100) not null,
+    CheckInDate date not null,
+    CheckOutDate date not null,
+    NumberOfGuests int null,
+    SpecialRequests varchar(300) null,
+    constraint pk_reservations_reservationid primary key (ReservationID),
+    constraint fk_reservations_guestid foreign key (GuestID) references Guests(GuestID),
+    constraint fk_reservations_roomid foreign key (RoomID) references Rooms(RoomID),
+    
+)
+
+
+CREATE TABLE Payments (
+    PaymentID int not null,
+    ReservationID int not null,
+    PaymentAmount money not null,
+    BookingID int not null,
+    PaymentDate date not null,
+    PaymentMethod varchar(100) not null,
+    constraint pk_payments_paymentID primary key (PaymentID),
+    constraint fk_payments_reservationid foreign key (ReservationID) references Reservations(ReservationID),
+    constraint fk_payments_bookingid foreign key (BookingID) references Bookings(BookingID)
+    
+
+)
+
+
+
+CREATE TABLE Inventory (
+    InventoryID int not null,
+    ItemName varchar(200) not null,
+    Quantity int not null,
+    LastRestockDate date not null,
+    SupplierInfo varchar(200) not null
+    constraint pk_inventory_inventoryID primary key (InventoryID)
+)
+
+
+CREATE TABLE Staff (
+    StaffID int not null,
+    FirstName varchar(50) not null,
+    LastName varchar(50) not null,
+    Staff_Role varchar(200) not null,
+    Staff_Department varchar(200) not null,
+    ContactInfo varchar(20) not null,
+    StaffSSN varchar(20) not null,
+    HireDate date not null,
+    constraint pk_staff_staffid primary key (StaffID)
+)
+
+
+
+--UP DATA
+
+INSERT INTO Guests (GuestID, Guest_firstname, Guest_lastname, Guest_phonenumber, Guest_email, Guest_address)
+VALUES
+(1, 'John', 'Doe', '123-456-7890', 'john.doe@email.com', '123 Main Street, City'),
+(2, 'Jane', 'Smith', '987-654-3210', 'jane.smith@email.com', '456 Oak Avenue, Town'),
+(3, 'Michael', 'Johnson', '555-123-4567', 'michael.j@email.com', '789 Pine Lane, Village'),
+(6, 'Alex', 'Wilson', '111-222-3333', 'alex.w@email.com', '456 Pine Street, Suburb'),
+(7, 'Sophia', 'Miller', '333-444-5555', 'sophia.m@email.com', '789 Cedar Avenue, City'),
+(8, 'Ethan', 'Anderson', '555-666-7777', 'ethan.a@email.com', '123 Elm Lane, Town');
+
+
+INSERT INTO Rooms (RoomID, RoomNumber, RoomType, BedType, Rate, RoomStatus)
+VALUES
+(101, 101, 'Standard Single', 'Single Bed', 100.00, 'Vacant'),
+(201, 201, 'Deluxe Double', 'Double Bed', 150.00, 'Occupied'),
+(301, 301, 'Suite', 'King Bed', 200.00, 'Available'),
+(103, 103, 'Standard Single', 'Single Bed', 100.00, 'Vacant'),
+(204, 204, 'Deluxe Double', 'Double Bed', 150.00, 'Occupied'),
+(305, 305, 'Suite', 'King Bed', 200.00, 'Available');
+
+
+
+INSERT INTO RoomTypes (RoomTypeID, Room_Description, MaxOccupancy, Amenities)
+VALUES
+(1, 'Standard Single', 1, 'TV, Wi-Fi, Bathroom'),
+(2, 'Deluxe Double', 2, 'TV, Wi-Fi, Mini-Bar, Jacuzzi'),
+(3, 'Suite', 4, 'TV, Wi-Fi, Kitchen, Living Room, Jacuzzi, Balcony'),
+(7, 'Standard Double', 2, 'TV, Wi-Fi, Bathroom'),
+(8, 'Family Suite', 6, 'TV, Wi-Fi, Kitchen, Living Room, Balcony'),
+(9, 'Economy Double', 2, 'TV, Wi-Fi, Shared Bathroom');
+
+
+INSERT INTO Bookings (BookingID, GuestID, BookingDate, BookingTime, BookingType)
+VALUES
+(101, 1, '2023-01-15', '15:30:00', 'Online'),
+(102, 2, '2023-02-20', '12:00:00', 'Phone'),
+(103, 3, '2023-03-10', '18:45:00', 'Walk-in'),
+(107, 6, '2023-10-05', '09:00:00', 'Online'),
+(108, 7, '2023-11-10', '14:30:00', 'Phone'),
+(109, 8, '2023-12-15', '19:00:00', 'Walk-in');
+
+
+INSERT INTO Reservations (ReservationID, GuestID, RoomID, Room_Description, CheckInDate, CheckOutDate, NumberOfGuests, SpecialRequests)
+VALUES
+(201,1, 101, 'Standard Single', '2023-04-01', '2023-04-05', 1, 'Non-smoking room'),
+(202,2, 201, 'Deluxe Double', '2023-05-10', '2023-05-15', 2, 'Extra pillows'),
+(203,3, 301, 'Suite', '2023-06-20', '2023-06-25', 4, 'Ocean view, Late checkout'),
+(207,6, 103, 'Standard Single', '2023-01-01', '2023-01-05', 1, 'Late check-out'),
+(208,7, 204, 'Deluxe Double', '2023-02-10', '2023-02-15', 2, 'Airport pickup'),
+(209,8, 305, 'Suite', '2023-03-20', '2023-03-25', 4, 'Early check-in, Extra towels');
+
+
+INSERT INTO Payments (PaymentID, ReservationID, PaymentAmount, BookingID, PaymentDate, PaymentMethod)
+VALUES
+(301, 201, 500.00, 101, '2023-04-03', 'Credit Card'),
+(302, 202, 750.00, 102, '2023-05-12', 'PayPal'),
+(303, 203, 1000.00, 103, '2023-06-22', 'Cash'),
+(307, 207, 120.00, 107, '2023-01-03', 'Debit Card'),
+(308, 208, 180.00, 108, '2023-02-12', 'Venmo'),
+(309, 209, 250.00, 109, '2023-03-22', 'Credit Card');
+
+
+
+INSERT INTO Inventory (InventoryID, ItemName, Quantity, LastRestockDate, SupplierInfo)
+VALUES
+(1, 'Towels', 200, '2023-01-05', 'ABC Linens'),
+(2, 'Coffee Mugs', 100, '2023-02-10', 'XYZ Kitchen Supplies'),
+(3, 'Toiletries', 300, '2023-03-15', 'CleanCare Distributors'),
+(7, 'Pillows', 100, '2023-07-01', 'SoftTouch Linens'),
+(8, 'Soap', 300, '2023-08-10', 'CleanCare Distributors'),
+(9, 'Coffee Pods', 50, '2023-09-15', 'BrewMaster Distributors');
+
+
+
+INSERT INTO Staff (StaffID, FirstName, LastName, Staff_Role, Staff_Department, ContactInfo, StaffSSN, HireDate)
+VALUES
+(1001, 'Mary', 'Johnson', 'Front Desk Clerk', 'Reception', '555-1234', '123-45-6789', '2022-01-15'),
+(1002, 'Robert', 'Smith', 'Housekeeping Staff', 'Housekeeping', '555-5678', '987-65-4321', '2022-02-20'),
+(1003, 'David', 'Williams', 'Chef', 'Kitchen', '555-9876', '456-78-9012', '2022-03-10'),
+(1007, 'Ava', 'Davis', 'Front Desk Manager', 'Reception', '555-1111', '888-99-0000', '2022-07-05'),
+(1008, 'Mia', 'Jones', 'Housekeeping Supervisor', 'Housekeeping', '555-2222', '111-22-3333', '2022-08-10'),
+(1009, 'Carter', 'Thomas', 'Head Chef', 'Kitchen', '555-3333', '444-55-6666', '2022-09-15');
+
+
+
+SELECT * FROM Guests
+SELECT * FROM Reservations
+SELECT * FROM Rooms
+SELECT * FROM RoomTypes
+SELECT * FROM Bookings
+SELECT * FROM Payments
+SELECT * FROM Inventory
+SELECT * FROM Staff

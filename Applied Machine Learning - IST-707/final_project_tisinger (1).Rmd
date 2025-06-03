@@ -1,0 +1,666 @@
+---
+title: "R Notebook"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+#install.packages(c("datasets", "class", "ggplot2", "plyr", "dplyr", "lattice", "caret", "e1071", "randomForest", "tree", "MASS", "rpart", "rpart.plot", "naivebayes", "tidyverse", "RColorBrewer", "rattle", "cluster", "foreign", "maptree", "FactoMineR"))
+
+
+```
+
+
+```{r}
+library(datasets)
+library(class)
+library(ggplot2)
+library(plyr)
+library(dplyr)
+library(lattice)
+library(caret)
+library(e1071)
+library(randomForest)
+library(tree)
+library(MASS)
+library(rpart)
+library(rpart.plot)
+library(naivebayes)
+library(tidyverse)
+library(RColorBrewer)
+library(rattle)
+library(cluster)
+library(foreign)
+library(maptree)
+library(FactoMineR)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(ggplot2)
+library(dplyr)
+library(FactoMineR)  
+library(factoextra) 
+library(ggplot2)
+library(factoextra)
+library(dplyr)
+library(cluster)
+library(reshape2)
+library(ggplot2)
+library(factoextra)
+library(dplyr)
+library(cluster)
+library(reshape2)
+```
+
+
+
+```{r}
+#https://www.kaggle.com/datasets/northon/globalterrorismdatabase-compact
+
+input_terror = read.csv("C://Users//benja//Documents//Bumper Pictures//ist707//archive (1)//globalterrorismdb_shorter.csv")
+
+
+head(input_terror,5)
+```
+
+```{r}
+#Trim to Only South East Asia
+
+filter_terror <- input_terror[input_terror$region %in% 5, ]
+
+head(filter_terror, 5)
+
+```
+
+```{r}
+
+attack_counts <- as.data.frame(table(filter_terror$attacktype1_txt))
+
+max_count <- max(attack_counts$Freq)
+
+
+ggplot(attack_counts, aes(x = reorder(Var1, -Freq), y = Freq)) +
+  geom_bar(stat = "identity", fill = "#D44500") + 
+  theme_minimal(base_size = 15) +
+  theme(panel.background = element_rect(fill = "black"),
+        plot.background = element_rect(fill = "black"),
+        axis.text.x = element_text(color = "white", angle = 45, hjust = 1),
+        axis.text.y = element_text(color = "white"),
+        axis.title.x = element_text(color = "white"),
+        axis.title.y = element_text(color = "white"),
+        plot.title = element_text(color = "white", hjust = 0.5)) +
+  labs(x = "Attack Type", y = "Number of Attacks", 
+       title = "Terrorist Attacks by Type in Southeast Asia Region") +
+  geom_text(aes(label = Freq), vjust = -0.5, color = "white") + 
+  ylim(0, max_count * 1.15) 
+
+
+```
+
+```{r}
+#Decision Tree for South East Asia on Predicting Attack Type based on Target, Year, Success, Weapon Type
+
+
+filter_terror <- input_terror[input_terror$region %in% 5, ]
+filter_terror <- filter_terror[filter_terror$city != 'Unknown', ]
+filter_terror <- filter_terror[filter_terror$nkill > 0, ]
+
+terror_data <- filter_terror[, c("attacktype1_txt", "targtype1_txt","iyear","success", "weaptype1_txt")]
+
+colnames(terror_data) <- c("attacktype", "targtype", "attackyear", "success", "weapontype")
+
+terror_data <- na.omit(terror_data)
+
+terror_data$attacktype <- as.factor(terror_data$attacktype)
+#terror_data$region <- as.factor(terror_data$region)
+terror_data$targtype <- as.factor(terror_data$targtype)
+terror_data$weapontype <- as.factor(terror_data$weapontype)
+
+set.seed(123)  
+train_index <- createDataPartition(terror_data$attacktype, p = 0.7, list = FALSE)
+train_data <- terror_data[train_index, ]
+test_data <- terror_data[-train_index, ]
+
+tree_model <- rpart(attacktype ~  targtype + attackyear + success + weapontype, 
+                    data = train_data, method = "class")
+
+rpart.plot(tree_model)
+
+predictions <- predict(tree_model, test_data, type = "class")
+
+conf_matrix <- confusionMatrix(predictions, test_data$attacktype)
+print(conf_matrix)
+
+print(paste("Accuracy:", round(conf_matrix$overall['Accuracy'], 2)))
+
+```
+
+```{r}
+#Decision Tree using PCA on the SouthEast Asia Region Predicting Attack Type based on Location Variables including Region -- 98% Confidence
+
+
+filter_terror <- input_terror[input_terror$region %in% 5, ]
+filter_terror <- filter_terror[filter_terror$city != 'Unknown', ]
+filter_terror <- filter_terror[filter_terror$nkill > 0, ]
+terror_data <- filter_terror[, c("attacktype1_txt", "region", "targtype1_txt","iyear","provstate","success", "weaptype1_txt")]
+colnames(terror_data) <- c("attacktype", "region", "targtype", "attackyear", "Providence", "success", "weapontype")
+terror_data <- na.omit(terror_data)
+
+factor_vars <- c("attacktype", "region", "targtype", "weapontype")
+terror_data[factor_vars] <- lapply(terror_data[factor_vars], as.factor)
+
+single_level_factors <- sapply(terror_data[factor_vars], function(x) length(unique(x)) <= 1)
+factor_vars <- factor_vars[!single_level_factors]
+terror_data <- terror_data[, c(factor_vars, "attacktype")]
+
+terror_data_numeric <- model.matrix(~ . - 1, data = terror_data)
+
+pca_result <- PCA(terror_data_numeric, scale.unit = TRUE, ncp = min(ncol(terror_data_numeric), 10))  
+pca_data <- as.data.frame(pca_result$ind$coord) 
+pca_data$attacktype <- terror_data$attacktype
+
+set.seed(123) 
+train_index <- createDataPartition(pca_data$attacktype, p = 0.7, list = FALSE)
+train_data <- pca_data[train_index, ]
+test_data <- pca_data[-train_index, ]
+
+tree_model <- rpart(attacktype ~ ., data = train_data, method = "class")
+
+rpart.plot(tree_model)
+
+predictions <- predict(tree_model, test_data, type = "class")
+
+conf_matrix <- confusionMatrix(predictions, test_data$attacktype)
+print(conf_matrix)
+print(paste("Accuracy:", round(conf_matrix$overall['Accuracy'], 2)))
+
+```
+
+```{r}
+#Decision Tree for Regions 1-5 - Filtered out Unknown Cities using PCA to help Create a Country Attack Location
+
+filter_terror <- input_terror
+
+filter_terror <- filter_terror[filter_terror$city != 'Unknown', ]
+filter_terror <- filter_terror[filter_terror$region %in% 1:5, ]
+
+terror_data <- filter_terror[, c("attacktype1_txt", "region_txt", "targtype1_txt", "iyear", "success", "weaptype1_txt", "country_txt")]
+
+colnames(terror_data) <- c("attacktype", "region", "targtype", "attackyear", "success", "weapontype", "country")
+
+terror_data$country <- gsub("[^a-zA-Z0-9 ]", "", terror_data$country)
+
+terror_data <- na.omit(terror_data)
+
+factor_vars <- c("attacktype", "targtype", "weapontype", "country", "region")  
+terror_data[factor_vars] <- lapply(terror_data[factor_vars], as.factor)
+
+single_level_factors <- sapply(terror_data[factor_vars], function(x) length(unique(x)) <= 1)
+factor_vars <- factor_vars[!single_level_factors]
+terror_data <- terror_data[, c(factor_vars, "attackyear", "success")]
+
+unique_countries <- unique(terror_data$country)
+print(unique_countries)
+
+
+terror_data_numeric <- model.matrix(~ . - 1, data = terror_data)
+
+pca_result <- PCA(terror_data_numeric, scale.unit = TRUE, ncp = min(ncol(terror_data_numeric), 10))  
+pca_data <- as.data.frame(pca_result$ind$coord) 
+
+pca_data$country <- terror_data$country
+
+set.seed(123) 
+train_index <- createDataPartition(pca_data$country, p = 0.7, list = FALSE)
+train_data <- pca_data[train_index, ]
+test_data <- pca_data[-train_index, ]
+
+tree_model <- rpart(country ~ ., data = train_data, method = "class")
+
+rpart.plot(tree_model)
+
+predictions <- predict(tree_model, test_data, type = "class")
+
+conf_matrix <- confusionMatrix(predictions, test_data$country)
+print(conf_matrix)
+
+print(paste("Accuracy:", round(conf_matrix$overall['Accuracy'], 2)))
+
+```
+
+
+```{r}
+#Decision Tree for Regions 1-5 - Filtered out Unknown Cities using PCA to help Create a REgion Attack Location
+
+
+filter_terror <- input_terror
+
+filter_terror <- filter_terror[filter_terror$city != 'Unknown', ]
+filter_terror <- filter_terror[filter_terror$region %in% 1:5, ]
+
+terror_data <- filter_terror[, c("attacktype1_txt", "region_txt", "targtype1_txt", "iyear", "success", "weaptype1_txt", "country_txt")]
+
+colnames(terror_data) <- c("attacktype", "region", "targtype", "attackyear", "success", "weapontype", "country")
+
+terror_data <- na.omit(terror_data)
+
+factor_vars <- c("attacktype", "targtype", "weapontype", "country", "region")  
+terror_data[factor_vars] <- lapply(terror_data[factor_vars], as.factor)
+
+single_level_factors <- sapply(terror_data[factor_vars], function(x) length(unique(x)) <= 1)
+factor_vars <- factor_vars[!single_level_factors]
+terror_data <- terror_data[, c(factor_vars, "attackyear", "success")]
+
+unique_regions <- unique(terror_data$region)
+print(unique_regions)
+
+terror_data_numeric <- model.matrix(~ . - 1, data = terror_data)
+
+pca_result <- PCA(terror_data_numeric, scale.unit = TRUE, ncp = min(ncol(terror_data_numeric), 10))  
+pca_data <- as.data.frame(pca_result$ind$coord)  
+pca_data$region <- terror_data$region
+
+set.seed(123)  
+train_index <- createDataPartition(pca_data$region, p = 0.7, list = FALSE)
+train_data <- pca_data[train_index, ]
+test_data <- pca_data[-train_index, ]
+
+tree_model <- rpart(region ~ ., data = train_data, method = "class")
+
+rpart.plot(tree_model)
+
+predictions <- predict(tree_model, test_data, type = "class")
+conf_matrix <- confusionMatrix(predictions, test_data$region)
+print(conf_matrix)
+print(paste("Accuracy:", round(conf_matrix$overall['Accuracy'], 2)))
+
+
+```
+
+
+```{r}
+
+#Decision Tree for Regions 5-11 - Filtered out Unknown Cities using PCA to help Create a REgion Attack Location
+
+
+filter_terror <- input_terror
+
+filter_terror <- filter_terror[filter_terror$city != 'Unknown', ]
+filter_terror <- filter_terror[filter_terror$region %in% 5:11, ]
+
+terror_data <- filter_terror[, c("attacktype1_txt", "region_txt", "targtype1_txt", "iyear", "success", "weaptype1_txt", "country_txt")]
+
+colnames(terror_data) <- c("attacktype", "region", "targtype", "attackyear", "success", "weapontype", "country")
+
+terror_data <- na.omit(terror_data)
+
+factor_vars <- c("attacktype", "targtype", "weapontype", "country", "region")  # Including region_txt (renamed to region) as a factor
+terror_data[factor_vars] <- lapply(terror_data[factor_vars], as.factor)
+
+single_level_factors <- sapply(terror_data[factor_vars], function(x) length(unique(x)) <= 1)
+factor_vars <- factor_vars[!single_level_factors]
+terror_data <- terror_data[, c(factor_vars, "attackyear", "success")]
+
+unique_regions <- unique(terror_data$region)
+print(unique_regions)
+
+
+terror_data_numeric <- model.matrix(~ . - 1, data = terror_data)
+
+pca_result <- PCA(terror_data_numeric, scale.unit = TRUE, ncp = min(ncol(terror_data_numeric), 10))  
+pca_data <- as.data.frame(pca_result$ind$coord)  # Principal components
+
+pca_data$region <- terror_data$region
+
+set.seed(123)  
+train_index <- createDataPartition(pca_data$region, p = 0.7, list = FALSE)
+train_data <- pca_data[train_index, ]
+test_data <- pca_data[-train_index, ]
+
+tree_model <- rpart(region ~ ., data = train_data, method = "class")
+
+rpart.plot(tree_model)
+
+predictions <- predict(tree_model, test_data, type = "class")
+
+conf_matrix <- confusionMatrix(predictions, test_data$region)
+print(conf_matrix)
+
+print(paste("Accuracy:", round(conf_matrix$overall['Accuracy'], 2)))
+
+
+```
+
+
+```{r}
+
+#Naive Bayes for Predicting Country of Attack based on Variables such as Year, Month, Region, City, Attack Type, Target Type and Weapon
+#53% Accuracy - Not Very Good 
+
+
+
+data <- input_terror
+data <- dplyr::select(data, iyear, imonth, iday, region_txt, provstate, city, 
+                      attacktype1_txt, targtype1_txt, weaptype1_txt, 
+                      success, suicide, nkill, nwound, country_txt)
+data <- na.omit(data)
+
+data$region_txt <- as.factor(data$region_txt)
+data$provstate <- as.factor(data$provstate)
+data$city <- as.factor(data$city)
+data$attacktype1_txt <- as.factor(data$attacktype1_txt)
+data$targtype1_txt <- as.factor(data$targtype1_txt)
+data$weaptype1_txt <- as.factor(data$weaptype1_txt)
+data$country_txt <- as.factor(data$country_txt)
+
+set.seed(123)
+train_index <- createDataPartition(data$country_txt, p = 0.8, list = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+
+nb_model <- naiveBayes(country_txt ~ ., data = train_data)
+
+predictions <- predict(nb_model, test_data)
+
+confusionMatrix(predictions, test_data$country_txt)
+
+```
+
+```{r}
+
+filter_terror <- input_terror[input_terror$region %in% 5, ]
+filter_terror <- filter_terror[filter_terror$city != 'Unknown', ]
+filter_terror <- filter_terror[filter_terror$nkill > 0, ]
+data <- filter_terror
+data <- dplyr::select(data, country_txt, weaptype1_txt)
+data <- na.omit(data)
+data$country_encoded <- as.numeric(as.factor(data$country_txt))
+data$weapon_encoded <- as.numeric(as.factor(data$weaptype1_txt))
+
+data_cluster <- data %>% dplyr::select(country_encoded, weapon_encoded)
+
+set.seed(123)
+kmeans_result <- kmeans(data_cluster, centers = 3)
+
+data_cluster$cluster <- as.factor(kmeans_result$cluster)
+
+ggplot(data_cluster, aes(x = country_encoded, y = weapon_encoded, color = cluster)) +
+  geom_point(size = 2) +
+  labs(title = "K-Means Clustering of Country and Weapon Used", 
+       x = "Country (Encoded)", 
+       y = "Weapon (Encoded)") +
+  theme_minimal()
+
+dist_matrix <- dist(data_cluster %>% dplyr::select(-cluster))
+hclust_result <- hclust(dist_matrix)
+
+plot(hclust_result, labels = data$country_txt, main = "Dendrogram of Countries and Weapons Used")
+
+country_weapon_matrix <- table(data$country_txt, data$weaptype1_txt)
+
+heatmap_data <- as.matrix(country_weapon_matrix)
+heatmap_melted <- melt(heatmap_data)
+
+
+ggplot(heatmap_melted, aes(x = Var2, y = Var1, fill = value)) +
+  geom_tile() +
+  scale_fill_gradient(low = "lightgrey", high = "darkorange") +
+  labs(title = "Heatmap Country & Weapon for SouthEast Asia",
+       x = "Weapon Type",
+       y = "Country",
+       fill = "Count") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size = 10),  
+        axis.text.y = element_text(size = 10),  
+        plot.title = element_text(size = 14, face = "bold"),  
+        axis.title.x = element_text(size = 12),  
+        axis.title.y = element_text(size = 12))  
+
+heatmap(heatmap_data, Rowv = NA, Colv = NA, scale = "column", 
+        main = "Heatmap Country vs Weapon Used for SouthEast Asia", 
+        xlab = "Weapon Type", 
+        ylab = "Country")
+
+```
+
+```{r}
+filter_terror <- input_terror[input_terror$region %in% 1:5, ]
+filter_terror <- filter_terror[filter_terror$city != 'Unknown', ]
+filter_terror <- filter_terror[filter_terror$nkill > 0, ]
+data <- filter_terror
+data <- dplyr::select(data, country_txt, weaptype1_txt)
+data <- na.omit(data)
+data$country_encoded <- as.numeric(as.factor(data$country_txt))
+data$weapon_encoded <- as.numeric(as.factor(data$weaptype1_txt))
+
+data_cluster <- data %>% dplyr::select(country_encoded, weapon_encoded)
+
+set.seed(123)
+kmeans_result <- kmeans(data_cluster, centers = 3)
+
+data_cluster$cluster <- as.factor(kmeans_result$cluster)
+
+ggplot(data_cluster, aes(x = country_encoded, y = weapon_encoded, color = cluster)) +
+  geom_point(size = 2) +
+  labs(title = "K-Means Clustering of Country and Weapon Used", 
+       x = "Country (Encoded)", 
+       y = "Weapon (Encoded)") +
+  theme_minimal()
+
+dist_matrix <- dist(data_cluster %>% dplyr::select(-cluster))
+hclust_result <- hclust(dist_matrix)
+
+plot(hclust_result, labels = data$country_txt, main = "Dendrogram of Countries and Weapons Used")
+
+country_weapon_matrix <- table(data$country_txt, data$weaptype1_txt)
+
+heatmap_data <- as.matrix(country_weapon_matrix)
+heatmap_melted <- melt(heatmap_data)
+
+heatmap(heatmap_data, Rowv = NA, Colv = NA, scale = "column", 
+        main = "Heatmap Country vs Weapon Used", 
+        xlab = "Weapon Type", 
+        ylab = "Country")
+
+
+```
+
+```{r}
+filter_terror <- input_terror[input_terror$region %in% 1:5, ]
+filter_terror <- filter_terror[filter_terror$city != 'Unknown', ]
+filter_terror <- filter_terror[filter_terror$nkill > 0, ]
+data <- filter_terror
+data <- dplyr::select(data, country_txt, weaptype1_txt)
+data <- na.omit(data)
+data$country_encoded <- as.numeric(as.factor(data$country_txt))
+data$weapon_encoded <- as.numeric(as.factor(data$weaptype1_txt))
+
+data_cluster <- data %>% dplyr::select(country_encoded, weapon_encoded)
+set.seed(123)
+kmeans_result <- kmeans(data_cluster, centers = 4)  # Increase centers to 4
+
+data_cluster$cluster <- as.factor(kmeans_result$cluster)
+
+data_cluster$country <- data$country_txt
+data_cluster$weapon <- data$weaptype1_txt
+
+find_hull <- function(df) df[chull(df$country_encoded, df$weapon_encoded), ]
+hulls <- data_cluster %>%
+  group_by(cluster) %>%
+  do(find_hull(.))
+
+ggplot(data_cluster, aes(x = country_encoded, y = weapon_encoded, color = cluster, shape = cluster)) +
+  geom_point(size = 3) +  # Set point size
+  geom_polygon(data = hulls, aes(x = country_encoded, y = weapon_encoded, fill = cluster, color = cluster), 
+               alpha = 0.3, show.legend = FALSE) +  
+  geom_text(aes(label = paste(country, weapon, sep = " - ")), 
+            vjust = -0.5, size = 3, check_overlap = TRUE, 
+            fontface = "bold", color = "black") +  
+  labs(title = "K-Means Clustering of Country and Weapon Used", 
+       x = "Country (Encoded)", 
+       y = "Weapon (Encoded)") +
+  theme_minimal() +
+  scale_color_manual(values = c("red", "blue", "green", "purple")) +  
+  scale_fill_manual(values = c("red", "blue", "green", "purple")) +   
+  theme(legend.position = "right")  
+
+```
+
+
+```{r}
+filter_terror <- input_terror[input_terror$region %in% 1:5, ]
+filter_terror <- filter_terror[filter_terror$city != 'Unknown', ]
+filter_terror <- filter_terror[filter_terror$nkill > 0, ]
+data <- filter_terror
+data <- dplyr::select(data, country_txt, weaptype1_txt)
+data <- na.omit(data)
+data$country_encoded <- as.numeric(as.factor(data$country_txt))
+data$weapon_encoded <- as.numeric(as.factor(data$weaptype1_txt))
+
+data_cluster <- data %>% dplyr::select(country_encoded, weapon_encoded)
+set.seed(123)
+kmeans_result <- kmeans(data_cluster, centers = 4)  # Set number of clusters
+
+data_cluster$cluster <- as.factor(kmeans_result$cluster)
+
+data_cluster$country <- data$country_txt
+data_cluster$weapon <- data$weaptype1_txt
+
+pca_result <- prcomp(data_cluster[, c("country_encoded", "weapon_encoded")], center = TRUE, scale. = TRUE)
+data_cluster$PC1 <- pca_result$x[, 1]
+data_cluster$PC2 <- pca_result$x[, 2]
+
+find_hull <- function(df) df[chull(df$PC1, df$PC2), ]
+hulls <- data_cluster %>%
+  group_by(cluster) %>%
+  do(find_hull(.))
+
+ggplot(data_cluster, aes(x = PC1, y = PC2, color = cluster, shape = cluster)) +
+  geom_point(size = 3) +  # Set point size
+  geom_polygon(data = hulls, aes(x = PC1, y = PC2, fill = cluster, color = cluster), 
+               alpha = 0.3, show.legend = FALSE) +  
+  geom_text(aes(label = paste(country, weapon, sep = " - ")), 
+            vjust = -0.5, size = 3, check_overlap = TRUE, 
+            fontface = "bold", color = "black") +  
+  labs(title = "PCA of Country and Weapon with K-Means Clustering", 
+       x = "Principal Component 1", 
+       y = "Principal Component 2") +
+  theme_minimal() +
+  scale_color_manual(values = c("red", "blue", "green", "purple")) +  
+  scale_fill_manual(values = c("red", "blue", "green", "purple")) +   
+  theme(legend.position = "right")  
+
+```
+
+```{r}
+#####################################################################################################
+```
+
+
+```{r}
+library(stringi)
+
+data <- input_terror
+region_5_data <- data %>% filter(region == 5)
+
+region_5_data$gname <- stri_trans_general(region_5_data$gname, "Latin-ASCII")
+region_5_data$attacktype1 <- stri_trans_general(region_5_data$attacktype1, "Latin-ASCII")
+region_5_data$targtype1 <- stri_trans_general(region_5_data$targtype1, "Latin-ASCII")
+region_5_data$property <- stri_trans_general(region_5_data$property, "Latin-ASCII")
+
+selected_data <- region_5_data %>% 
+  dplyr::select(gname, attacktype1, targtype1, nkill, nwound, property)
+
+selected_data <- na.omit(selected_data)
+selected_data$attacktype1 <- as.factor(selected_data$attacktype1)
+selected_data$targtype1 <- as.factor(selected_data$targtype1)
+selected_data$gname <- as.factor(selected_data$gname)
+
+set.seed(123) 
+train_index <- sample(seq_len(nrow(selected_data)), size = 0.7 * nrow(selected_data))
+train_data <- selected_data[train_index, ]
+test_data <- selected_data[-train_index, ]
+
+decision_tree <- rpart(gname ~ ., data = train_data, method = "class")
+
+print(decision_tree)
+
+rpart.plot(decision_tree)
+
+predictions <- predict(decision_tree, test_data, type = "class")
+
+confusion_matrix <- table(predictions, test_data$gname)
+print(confusion_matrix)
+
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Accuracy:", round(accuracy, 4)))
+
+```
+```{r}
+library(stringi)
+library(dplyr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(stats)
+
+data <- input_terror
+region_5_data <- data %>% filter(region == 5)
+
+region_5_data$gname <- stri_trans_general(region_5_data$gname, "Latin-ASCII")
+region_5_data$attacktype1 <- stri_trans_general(region_5_data$attacktype1, "Latin-ASCII")
+region_5_data$targtype1 <- stri_trans_general(region_5_data$targtype1, "Latin-ASCII")
+region_5_data$property <- stri_trans_general(region_5_data$property, "Latin-ASCII")
+
+selected_data <- region_5_data %>% 
+  dplyr::select(gname, attacktype1, targtype1, nkill, nwound, property)
+
+selected_data <- na.omit(selected_data)
+selected_data$attacktype1 <- as.factor(selected_data$attacktype1)
+selected_data$targtype1 <- as.factor(selected_data$targtype1)
+selected_data$gname <- as.factor(selected_data$gname)
+
+# One-hot encode the categorical variables
+dummies <- dummyVars(gname ~ ., data = selected_data)
+encoded_data <- predict(dummies, newdata = selected_data)
+encoded_data <- as.data.frame(encoded_data)
+
+# Add numeric columns
+encoded_data$gname <- selected_data$gname
+
+# Perform PCA on numeric data
+pca_result <- prcomp(encoded_data %>% dplyr::select(-gname), center = TRUE, scale. = TRUE)
+
+# Choose the number of components to keep (e.g., 2 for visualization purposes)
+pca_data <- data.frame(pca_result$x[, 1:2])
+pca_data$gname <- encoded_data$gname
+
+# Split the PCA-transformed data into training and testing sets
+set.seed(123) 
+train_index <- sample(seq_len(nrow(pca_data)), size = 0.7 * nrow(pca_data))
+train_data <- pca_data[train_index, ]
+test_data <- pca_data[-train_index, ]
+
+# Fit the decision tree model
+decision_tree <- rpart(gname ~ ., data = train_data, method = "class")
+
+print(decision_tree)
+rpart.plot(decision_tree)
+
+# Predict on the test set
+predictions <- predict(decision_tree, test_data, type = "class")
+
+# Evaluate the model
+confusion_matrix <- table(predictions, test_data$gname)
+print(confusion_matrix)
+
+accuracy <- sum(diag(confusion_matrix)) / sum(confusion_matrix)
+print(paste("Accuracy:", round(accuracy, 4)))
+
+```

@@ -1,0 +1,89 @@
+#IST 772
+#Benjamin Tisinger
+#01/31/2023
+#Homework 3
+
+#Question 2- page 50
+
+```{r}
+summary(ChickWeight)
+#4 Different Variables -- Weight|Time|Chick|Diet
+dim(ChickWeight)
+
+#4 is the Number of Columns
+#578 Can be inferred as the number of Occurrences/observations
+
+```
+
+#Question 3 - page 50
+```{r}
+summary(ChickWeight$weight)
+head(ChickWeight$weight)
+mean(ChickWeight$weight)
+mychkwts <- ChickWeight$weight
+quantile(mychkwts,0.50)
+
+#Summary Command for the Weight Variable of ChickWeight - This is across different quantiles - Min, 1st, Median, Mean, 3rd and Max. 
+#Head Returns the first couple observations of data set. You can choose how many to show like this - head(test,4) - defining 4 will show you only the first 4 observations. This case were showing the first couple observations from the Chickweight Weight column
+#Mean here is returning the average value from the ChickWeight Weight column. The mean weight here is 121.81
+#Creating a new Variable called mychkwts that passes just the weights from ChickWeight dataset
+#Creating a Sample Quantile with Probability of .50% -- Output of 103
+```
+
+
+#Question 4 - page 50
+```{r}
+
+hist(mychkwts, col = '#C1A875')
+abline(v=quantile(mychkwts,prob=0.025),col="orange")
+abline(v=quantile(mychkwts,prob=0.975),col="blue")
+
+```
+```{r}
+
+quantile(mychkwts,prob=0.025) 
+quantile(mychkwts,prob=0.975)      
+mean(mychkwts)
+median(mychkwts)
+
+
+#2.5% -- 41 - Quantitle = 2.5% of Chickweight quantile is 41
+#97.5% -- 294.575 - Quantitle 97.5% of the Chickweight Quantile is 294.575
+#Mean -- 121.83
+#Median -- 103
+#Histogram Shape most shows a Right Skewed (Positively Skewed) The larger the weight the frequency declines 
+#Between Orange and Blue Lines Show The central region of MyChkWts
+
+```
+
+#Question 5 Page 50
+```{r}
+set.seed(32233)
+sampledist <- replicate(1000, mean(sample(mychkwts, size=11, replace=TRUE)))
+hist(sampledist,col = '#592C88')
+abline(v=quantile(sampledist,prob=0.025),col="red")
+abline(v=quantile(sampledist,prob=0.975),col="green")
+#Perfect Bell Shaped Curve Here 
+```
+
+#Question 6 Page 51
+```{r}
+# The distribution of the original raw data provides a mean which is calculated directly from the dataset.
+# The mean taken from the sampledist variable is more likely to become the correct variable because as it samples the dataset the observations increase, and when they increase the mean should be placed more accurately in the middle. 
+# Data Distribution is best described as the frequency of indivdual points along the original dataset
+# Sampling Distribution is most often used for understanding stats, like in this case we are discussing the mean. 
+# The distribution of sampling is called the sampling distribution
+# Quantile Values here are completely different because they are genuine data and the sample values are just recorded means. 
+```
+
+#Question 7 Page 51
+```{r}
+set.seed(05432)
+sampledist1 <- replicate(100, mean(sample(mychkwts, size=11, replace=TRUE)))
+hist(sampledist1,col = '#592C88')
+abline(v=quantile(sampledist1,prob=0.025),col="red")
+abline(v=quantile(sampledist1,prob=0.975),col="green")
+
+#Doesn't Give you a whole look at the dataset. We can see the chckweight sample above has a higer sampledist and the one below is barely spread out. The sampling is just too small to understand the mean of the dataset and other information. Once we gather a higher sample we can better understand the average of the dataset and by grasping data points maybe located in denser regions of the dataset. 
+
+```
